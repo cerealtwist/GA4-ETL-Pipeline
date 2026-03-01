@@ -24,11 +24,11 @@ on:
 jobs:
   run-etl:
     name: Run GA4 ETL Pipeline
-    runs-on: ubuntu-latest        # GitHub provides a free Linux machine
+    runs-on: ubuntu-latest      
 
     steps:
 
-      # Step 1 — Download your repo code onto the GitHub machine
+      # Step 1 — Download  repo code onto the GitHub machine
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -38,12 +38,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Step 3 — Install all Python packages your script needs
+      # Step 3 — Install all Python packages
       - name: Install dependencies
         run: pip install -r requirements.txt
 
       # Step 4 — Write the service account JSON from the GitHub Secret
-      #           (this keeps your secret key safe — never stored in code)
       - name: Write service account key
         run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
 
@@ -54,7 +53,6 @@ jobs:
         run: python etl_ga4_pipeline.py
 
       # Step 6 — Save the output CSVs as downloadable artifacts
-      #           (you can download them from the Actions tab after each run)
       - name: Upload output CSVs
         uses: actions/upload-artifact@v4
         with:
@@ -62,13 +60,14 @@ jobs:
           path: outputs/*.csv
           retention-days: 30
 
-      # Step 7 — Commit updated outputs back to the repo (optional)
-      #           Remove this step if you don't want CSVs saved in git
+      # Step 7 — Commit updated outputs back to the repo
       - name: Commit outputs to repo
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add outputs/*.csv
+          git fetch origin main
+          git rebase origin/main
           git diff --staged --quiet || git commit -m "ETL refresh: $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
         env:
