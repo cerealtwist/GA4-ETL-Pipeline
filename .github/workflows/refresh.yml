@@ -1,0 +1,75 @@
+name: GA4 ETL Daily Refresh
+
+# ─────────────────────────────────────────────────────────────────
+# WHEN TO RUN
+# ─────────────────────────────────────────────────────────────────
+on:
+
+  # 1. AUTOMATIC — runs every day at 06:00 UTC
+  #    Convert to your timezone: 06:00 UTC = 13:00 Manila / 14:00 SGT
+  schedule:
+    - cron: '0 6 * * *'
+
+  # 2. MANUAL — run anytime by clicking a button in GitHub
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why are you running this manually?'
+        required: false
+        default: 'Manual refresh'
+
+# ─────────────────────────────────────────────────────────────────
+# WHAT TO DO
+# ─────────────────────────────────────────────────────────────────
+jobs:
+  run-etl:
+    name: Run GA4 ETL Pipeline
+    runs-on: ubuntu-latest        # GitHub provides a free Linux machine
+
+    steps:
+
+      # Step 1 — Download your repo code onto the GitHub machine
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2 — Install Python 3.11
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3 — Install all Python packages your script needs
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Step 4 — Write the service account JSON from the GitHub Secret
+      #           (this keeps your secret key safe — never stored in code)
+      - name: Write service account key
+        run: echo '${{ secrets.SERVICE_ACCOUNT_JSON }}' > service_account.json
+
+      # Step 5 — Run the ETL pipeline
+      - name: Run ETL pipeline
+        env:
+          SPREADSHEET_NAME: ${{ secrets.SPREADSHEET_NAME }}
+        run: python etl_ga4_pipeline.py
+
+      # Step 6 — Save the output CSVs as downloadable artifacts
+      #           (you can download them from the Actions tab after each run)
+      - name: Upload output CSVs
+        uses: actions/upload-artifact@v4
+        with:
+          name: etl-outputs-${{ github.run_number }}
+          path: outputs/*.csv
+          retention-days: 30
+
+      # Step 7 — Commit updated outputs back to the repo (optional)
+      #           Remove this step if you don't want CSVs saved in git
+      - name: Commit outputs to repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add outputs/*.csv
+          git diff --staged --quiet || git commit -m "ETL refresh: $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
